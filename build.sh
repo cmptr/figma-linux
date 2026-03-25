@@ -799,15 +799,23 @@ console.log('Duplicate tabs patch applied (' + patched + '/5 patches)');
 		sed -i 's/frame:!1/frame:true/g' "$shell_js"
 		sed -i 's/frame:!0/frame:true/g' "$shell_js"
 
-		# Show the app menu dropdown button on Linux (normally Windows-only).
-		# The caption container (menu + minimize/maximize/close) is gated behind
-		# a tS="win32"===e.platform check. We force render it, then hide the
-		# window control buttons via CSS — keeping only the menu dropdown.
-		sed -i 's|i=tS&&(0,p.jsx)(em|i=!0\&\&(0,p.jsx)(em|' "$shell_js"
-		if grep -q 'i=!0&&(0,p.jsx)(em' "$shell_js"; then
-			echo "Patched $shell_js: app menu button enabled on Linux"
+		# Show the app menu dropdown button AND recents button on Linux.
+		# These are gated by a variable like tO="win32"===e.platform.
+		# We change it to tO="darwin"!==e.platform so it's true on Linux.
+		# The variable name changes between Figma versions, so we match dynamically.
+		local win32_shell_var
+		win32_shell_var=$(grep -oP '\b\w{2}="win32"===\w\.platform\b' "$shell_js" | head -1)
+		if [[ -n $win32_shell_var ]]; then
+			local var_name=${win32_shell_var%%=*}
+			local new_val="${var_name}=\"darwin\"!==e.platform"
+			sed -i "s|${win32_shell_var}|${new_val}|" "$shell_js"
+			if grep -q "$new_val" "$shell_js"; then
+				echo "Patched $shell_js: platform check '$var_name' enabled for Linux (menu + recents)"
+			else
+				echo "Warning: platform check patch failed in $shell_js"
+			fi
 		else
-			echo "Warning: app menu button patch did not match in $shell_js"
+			echo "Warning: could not find win32 platform check in $shell_js"
 		fi
 
 		echo "Patched $shell_js"
