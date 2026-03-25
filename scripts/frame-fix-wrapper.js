@@ -42,6 +42,27 @@ Module.prototype.require = function(id) {
 					if (process.platform === 'linux') {
 						this.setMenuBarVisibility(false);
 
+						// Wayland fix: content bounds update asynchronously, so when
+						// entering/leaving fullscreen or maximize, the first resize
+						// fires before the geometry is final. Re-emit resize after a
+						// short delay so the app recalculates child view bounds.
+						const isWayland = process.argv.includes('--ozone-platform=wayland')
+							|| (process.env.WAYLAND_DISPLAY && !process.argv.includes('--ozone-platform=x11'));
+						if (isWayland && !isTrayWindow) {
+							const forceResizeUpdate = () => {
+								setTimeout(() => {
+									if (!this.isDestroyed()) {
+										this.emit('resize');
+									}
+								}, 150);
+							};
+							this.on('maximize', forceResizeUpdate);
+							this.on('unmaximize', forceResizeUpdate);
+							this.on('enter-full-screen', forceResizeUpdate);
+							this.on('leave-full-screen', forceResizeUpdate);
+							console.log('[Frame Fix] Wayland resize workaround enabled');
+						}
+
 						// Debug: open DevTools for tray notification window
 						if (isTrayWindow && process.env.FIGMA_DEBUG === '1') {
 							console.log('[Frame Fix] DEBUG: Opening DevTools for tray window');
