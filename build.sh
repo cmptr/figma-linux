@@ -740,7 +740,25 @@ if (trayMatch && getterFn && setterFn) {
   console.error('Warning: tray menu pattern not found (trayMatch:', !!trayMatch, 'getterFn:', getterFn, 'setterFn:', setterFn, ')');
 }
 
-// 5) Add toggle to Preferences menu
+// 5) Add 'Show App' button to tray context menu (after Allow Duplicate Tabs)
+// Find the anchor: end of Allow Duplicate Tabs entry followed by the settings/quit function
+// Pattern: }},FNLAST({inTrayContextMenu:!0}) — we insert Show App between them
+const wmMatch = code.match(/(\w+)\.lastFocusedWindow\(\)/);
+const wmVar = wmMatch ? wmMatch[1] : null;
+const showAppAnchor = /\}\},(\w+)\(\{inTrayContextMenu:!0\}\)/;
+const showAppMatch = code.match(showAppAnchor);
+if (wmVar && showAppMatch && !code.includes('Show App')) {
+  const [anchorStr, lastFn] = showAppMatch;
+  const showApp = '}},{label:\"Show App\",click(){let w=' + wmVar + '.lastFocusedWindow();w?w.makeVisible():' + wmVar + '.createOrRestoreNewWindow()}},' + lastFn + '({inTrayContextMenu:!0})';
+  code = code.replace(anchorStr, showApp);
+  console.log('Show App button added to tray menu');
+} else if (code.includes('Show App')) {
+  console.log('Show App already present');
+} else {
+  console.error('Warning: Could not add Show App to tray menu');
+}
+
+// 6) Add toggle to Preferences menu
 // Regex: function PREFSFN(){let VAR=[SETTINGSFN()]
 const prefsPattern = /function (\w+)\(\)\{let (\w+)=\[(\w+)\(\)\]/;
 const prefsMatch = code.match(prefsPattern);
