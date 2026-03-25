@@ -673,51 +673,88 @@ let code = fs.readFileSync('$main_js', 'utf8');
 let patched = 0;
 
 // 1) Add allowDuplicateTabs:!1 to the default state object (next to showFigmaInMenuBar:!0)
-const oldState = 'showFigmaInMenuBar:!0';
-const newState = 'showFigmaInMenuBar:!0,allowDuplicateTabs:!1';
-if (code.includes(oldState)) {
-  code = code.replace(oldState, newState);
+// Pattern is stable — 'showFigmaInMenuBar:!0' is a property name, not a variable
+if (code.includes('showFigmaInMenuBar:!0,allowDuplicateTabs:!1')) {
+  console.log('1/5: allowDuplicateTabs already in default state');
+  patched++;
+} else if (code.includes('showFigmaInMenuBar:!0')) {
+  code = code.replace('showFigmaInMenuBar:!0', 'showFigmaInMenuBar:!0,allowDuplicateTabs:!1');
   patched++;
 } else {
   console.error('Warning: default state pattern not found');
 }
 
 // 2) Add state restore validation (next to showFigmaInMenuBar restore)
-const oldRestore = '\"showFigmaInMenuBar\"in n&&typeof n.showFigmaInMenuBar==\"boolean\"&&(We.showFigmaInMenuBar=n.showFigmaInMenuBar)';
-const newRestore = '\"showFigmaInMenuBar\"in n&&typeof n.showFigmaInMenuBar==\"boolean\"&&(We.showFigmaInMenuBar=n.showFigmaInMenuBar),\"allowDuplicateTabs\"in n&&typeof n.allowDuplicateTabs==\"boolean\"&&(We.allowDuplicateTabs=n.allowDuplicateTabs)';
-if (code.includes(oldRestore)) {
-  code = code.replace(oldRestore, newRestore);
-  patched++;
+// Regex: \"showFigmaInMenuBar\"in VAR&&typeof VAR.showFigmaInMenuBar==\"boolean\"&&(STATE.showFigmaInMenuBar=VAR.showFigmaInMenuBar)
+const restorePattern = /\"showFigmaInMenuBar\"in (\w+)&&typeof \1\.showFigmaInMenuBar==\"boolean\"&&\((\w+)\.showFigmaInMenuBar=\1\.showFigmaInMenuBar\)/;
+const restoreMatch = code.match(restorePattern);
+if (restoreMatch) {
+  const [fullMatch, inputVar, stateVar] = restoreMatch;
+  if (code.includes(stateVar + '.allowDuplicateTabs=' + inputVar + '.allowDuplicateTabs')) {
+    console.log('2/5: allowDuplicateTabs restore already present');
+    patched++;
+  } else {
+    const restoreAdd = ',\"allowDuplicateTabs\"in ' + inputVar + '&&typeof ' + inputVar + '.allowDuplicateTabs==\"boolean\"&&(' + stateVar + '.allowDuplicateTabs=' + inputVar + '.allowDuplicateTabs)';
+    code = code.replace(fullMatch, fullMatch + restoreAdd);
+    patched++;
+  }
 } else {
   console.error('Warning: state restore pattern not found');
 }
 
 // 3) Patch openFileTab default parameter to read from persistent state
-const oldDefault = 'allowDuplicateTab:W=!1';
-const newDefault = 'allowDuplicateTab:W=(typeof H===\"function\"?H().allowDuplicateTabs:!1)';
-if (code.includes(oldDefault)) {
-  code = code.replace(oldDefault, newDefault);
+// Regex: allowDuplicateTab:VAR=!1  (VAR is any minified name)
+// Also find the settings getter function: look for se().showFigmaInMenuBar pattern
+const getterMatch = code.match(/(\w+)\(\)\.showFigmaInMenuBar/);
+const getterFn = getterMatch ? getterMatch[1] : null;
+const defaultPattern = /allowDuplicateTab:(\w+)=!1/;
+const defaultMatch = code.match(defaultPattern);
+if (defaultMatch && getterFn) {
+  const [fullMatch, varName] = defaultMatch;
+  const newDefault = 'allowDuplicateTab:' + varName + '=(typeof ' + getterFn + '===\"function\"?' + getterFn + '().allowDuplicateTabs:!1)';
+  code = code.replace(fullMatch, newDefault);
   patched++;
 } else {
-  console.error('Warning: openFileTab default parameter pattern not found');
+  console.error('Warning: openFileTab default parameter pattern not found (defaultMatch:', !!defaultMatch, 'getterFn:', getterFn, ')');
 }
+
+// Find the settings setter function: look for pt({showFigmaInMenuBar:...}) pattern
+const setterMatch = code.match(/(\w+)\(\{showFigmaInMenuBar:\w+\.checked\}\)/);
+const setterFn = setterMatch ? setterMatch[1] : null;
 
 // 4) Add toggle checkbox to tray context menu using persistent state
-const oldTray = 'NP(),WP(),FR(),GP({inTrayContextMenu:!0})';
-const newTray = 'NP(),WP(),FR(),{label:\"Allow Duplicate Tabs\",type:\"checkbox\",checked:H().allowDuplicateTabs,click(n){Me({allowDuplicateTabs:n.checked})}},GP({inTrayContextMenu:!0})';
-if (code.includes(oldTray)) {
-  code = code.replace(oldTray, newTray);
-  patched++;
+// Regex: FN1(),FN2(),FN3(),FN4({inTrayContextMenu:!0})
+const trayPattern = /(\w+\(\),\w+\(\),\w+\(\)),(\w+)\(\{inTrayContextMenu:!0\}\)/;
+const trayMatch = code.match(trayPattern);
+if (trayMatch && getterFn && setterFn) {
+  const [fullMatch, prefix, lastFn] = trayMatch;
+  if (fullMatch.includes('Allow Duplicate Tabs')) {
+    console.log('4/5: tray menu toggle already present');
+    patched++;
+  } else {
+    const toggle = ',{label:\"Allow Duplicate Tabs\",type:\"checkbox\",checked:' + getterFn + '().allowDuplicateTabs,click(n){' + setterFn + '({allowDuplicateTabs:n.checked})}}';
+    code = code.replace(fullMatch, prefix + toggle + ',' + lastFn + '({inTrayContextMenu:!0})');
+    patched++;
+  }
 } else {
-  console.error('Warning: tray menu pattern not found');
+  console.error('Warning: tray menu pattern not found (trayMatch:', !!trayMatch, 'getterFn:', getterFn, 'setterFn:', setterFn, ')');
 }
 
-// 5) Add toggle to Preferences menu (same as tray, accessible via menu bar)
-const oldPrefs = 'function PR(){let n=[FR()]';
-const newPrefs = 'function PR(){let n=[FR(),{label:\"Allow Duplicate Tabs\",type:\"checkbox\",checked:H().allowDuplicateTabs,click(n){Me({allowDuplicateTabs:n.checked})}}]';
-if (code.includes(oldPrefs)) {
-  code = code.replace(oldPrefs, newPrefs);
-  patched++;
+// 5) Add toggle to Preferences menu
+// Regex: function PREFSFN(){let VAR=[SETTINGSFN()]
+const prefsPattern = /function (\w+)\(\)\{let (\w+)=\[(\w+)\(\)\]/;
+const prefsMatch = code.match(prefsPattern);
+if (prefsMatch && getterFn && setterFn) {
+  const [fullMatch, prefsFn, arrVar, settingsFn] = prefsMatch;
+  // Verify this is the right function by checking settingsFn matches the one used in tray
+  if (fullMatch.includes('Allow Duplicate Tabs')) {
+    console.log('5/5: Preferences menu toggle already present');
+    patched++;
+  } else {
+    const toggle = ',{label:\"Allow Duplicate Tabs\",type:\"checkbox\",checked:' + getterFn + '().allowDuplicateTabs,click(' + arrVar + '){' + setterFn + '({allowDuplicateTabs:' + arrVar + '.checked})}}';
+    code = code.replace(fullMatch, 'function ' + prefsFn + '(){let ' + arrVar + '=[' + settingsFn + '()' + toggle + ']');
+    patched++;
+  }
 } else {
   console.error('Warning: Preferences menu pattern not found');
 }
@@ -822,17 +859,22 @@ console.log('Updated package.json: main entry set to frame-fix-entry.js');
 	#   [electron, --no-sandbox, --disable-features=..., app.asar, figma://auth?...]
 	# But handleCommandLineArgs expects the URL at argv[1] (isPackaged) or argv[2] (dev).
 	# We patch it to scan all argv entries for a URL or file path instead.
+	# Uses regex to be resilient to minified variable name changes across Figma versions.
 	echo 'Patching handleCommandLineArgs for Linux argv layout...'
 	if [[ -f $main_js ]]; then
 		node -e "
 const fs = require('fs');
 let code = fs.readFileSync('$main_js', 'utf8');
-const oldCode = 'async handleCommandLineArgs(r){let s=St.app.isPackaged?1:2;if(r.length>s){let a=r[s];if(ti(a,{isExternalOpen:!0}))return!0;if(aFe.default.statSync(a,{throwIfNoEntry:!1}))return await YP(a)}return!1}';
-const newCode = 'async handleCommandLineArgs(r){for(let s=1;s<r.length;s++){let a=r[s];if(a.startsWith(\"-\")||a.endsWith(\".asar\")||a.endsWith(\".js\"))continue;if(ti(a,{isExternalOpen:!0}))return!0;if(aFe.default.statSync(a,{throwIfNoEntry:!1}))return await YP(a)}return!1}';
-if (code.includes(oldCode)) {
-  code = code.replace(oldCode, newCode);
+// Regex matches the function regardless of minified variable names:
+//   async handleCommandLineArgs(ARG){let V=MOD.app.isPackaged?1:2;if(ARG.length>V){let A=ARG[V];if(FN(A,{isExternalOpen:!0}))return!0;if(STAT.default.statSync(A,{throwIfNoEntry:!1}))return await OPEN(A)}return!1}
+const pattern = /async handleCommandLineArgs\((\w+)\)\{let (\w+)=(\w+)\.app\.isPackaged\?1:2;if\(\1\.length>\2\)\{let (\w+)=\1\[\2\];if\((\w+)\(\4,\{isExternalOpen:!0\}\)\)return!0;if\((\w+)\.default\.statSync\(\4,\{throwIfNoEntry:!1\}\)\)return await (\w+)\(\4\)\}return!1\}/;
+const m = code.match(pattern);
+if (m) {
+  const [fullMatch, arg, , , innerVar, urlFn, statMod, openFn] = m;
+  const replacement = 'async handleCommandLineArgs(' + arg + '){for(let _i=1;_i<' + arg + '.length;_i++){let ' + innerVar + '=' + arg + '[_i];if(' + innerVar + '.startsWith(\"-\")||' + innerVar + '.endsWith(\".asar\")||' + innerVar + '.endsWith(\".js\"))continue;if(' + urlFn + '(' + innerVar + ',{isExternalOpen:!0}))return!0;if(' + statMod + '.default.statSync(' + innerVar + ',{throwIfNoEntry:!1}))return await ' + openFn + '(' + innerVar + ')}return!1}';
+  code = code.replace(fullMatch, replacement);
   fs.writeFileSync('$main_js', code);
-  console.log('handleCommandLineArgs patched for Linux argv');
+  console.log('handleCommandLineArgs patched for Linux argv (regex match)');
 } else {
   console.error('Warning: handleCommandLineArgs pattern not found - Figma may have updated');
   console.error('Auth redirect from browser may not work');
@@ -864,14 +906,16 @@ if (code.includes(oldCode)) {
 const fs = require('fs');
 let code = fs.readFileSync('$main_js', 'utf8');
 
-// Find the tray init pattern and add setContextMenu after setToolTip
-const oldTray = 'this.electronTray.setToolTip(ne.name),this.electronTray.on(\"right-click\",()=>{var r;(r=this.electronTray)==null||r.popUpContextMenu(qSt())})';
-const newTray = 'this.electronTray.setToolTip(ne.name),this.electronTray.setContextMenu(qSt()),this.electronTray.on(\"right-click\",()=>{var r;(r=this.electronTray)==null||r.popUpContextMenu(qSt())})';
-
-if (code.includes(oldTray)) {
-  code = code.replace(oldTray, newTray);
+// Regex matches tray init regardless of minified variable names:
+//   this.electronTray.setToolTip(MOD.name),this.electronTray.on(\"right-click\",()=>{var V;(V=this.electronTray)==null||V.popUpContextMenu(MENUFN())})
+const pattern = /this\.electronTray\.setToolTip\((\w+)\.name\),this\.electronTray\.on\(\"right-click\",\(\)=>\{var (\w+);\(\2=this\.electronTray\)==null\|\|\2\.popUpContextMenu\((\w+)\(\)\)\}\)/;
+const m = code.match(pattern);
+if (m) {
+  const [fullMatch, modName, varName, menuFn] = m;
+  const replacement = 'this.electronTray.setToolTip(' + modName + '.name),this.electronTray.setContextMenu(' + menuFn + '()),this.electronTray.on(\"right-click\",()=>{var ' + varName + ';(' + varName + '=this.electronTray)==null||' + varName + '.popUpContextMenu(' + menuFn + '())})';
+  code = code.replace(fullMatch, replacement);
   fs.writeFileSync('$main_js', code);
-  console.log('Tray context menu patched: added setContextMenu(qSt()) for Linux');
+  console.log('Tray context menu patched: added setContextMenu() for Linux (regex match)');
 } else {
   console.error('Warning: Tray context menu pattern not found - Figma may have updated');
   console.error('Right-click on tray icon may not show context menu on Linux');
@@ -889,7 +933,12 @@ if (code.includes(oldTray)) {
 const fs = require('fs');
 let code = fs.readFileSync('$main_js', 'utf8');
 
-const oldPattern = 't.setAlwaysOnTop(!0,\"pop-up-menu\"),t.webContents.on(\"will-navigate\"';
+// Regex to match: VAR.setAlwaysOnTop(!0,"pop-up-menu"),VAR.webContents.on("will-navigate"
+// The variable name may change across Figma versions
+const trayVarPattern = /(\w+)\.setAlwaysOnTop\(!0,"pop-up-menu"\),\1\.webContents\.on\("will-navigate"/;
+const trayVarMatch = code.match(trayVarPattern);
+const trayVar = trayVarMatch ? trayVarMatch[1] : 't';
+const oldPattern = trayVar + '.setAlwaysOnTop(!0,\"pop-up-menu\"),' + trayVar + '.webContents.on(\"will-navigate\"';
 
 // CSS to fix notification dropdown on Linux:
 // 1. Remove border-radius on outer container
@@ -954,15 +1003,17 @@ const jsCode = \`
 })();
 \`.replace(/\\n/g, ' ');
 
-const cssInject = 't.webContents.on(\"dom-ready\",()=>{t.webContents.insertCSS(' + JSON.stringify(cssCode) + ');t.webContents.executeJavaScript(' + JSON.stringify(jsCode) + ')})';
-const devToolsInject = 'process.env.FIGMA_DEBUG===\"1\"&&t.webContents.on(\"dom-ready\",()=>{t.webContents.openDevTools({mode:\"detach\"})})';
+const cssInject = trayVar + '.webContents.on(\"dom-ready\",()=>{' + trayVar + '.webContents.insertCSS(' + JSON.stringify(cssCode) + ');' + trayVar + '.webContents.executeJavaScript(' + JSON.stringify(jsCode) + ')})';
+const devToolsInject = 'process.env.FIGMA_DEBUG===\"1\"&&' + trayVar + '.webContents.on(\"dom-ready\",()=>{' + trayVar + '.webContents.openDevTools({mode:\"detach\"})})';
 
-const newPattern = 't.setAlwaysOnTop(!0,\"pop-up-menu\"),' + cssInject + ',' + devToolsInject + ',t.webContents.on(\"will-navigate\"';
+const newPattern = trayVar + '.setAlwaysOnTop(!0,\"pop-up-menu\"),' + cssInject + ',' + devToolsInject + ',' + trayVar + '.webContents.on(\"will-navigate\"';
 
 if (code.includes(oldPattern)) {
   code = code.replace(oldPattern, newPattern);
   fs.writeFileSync('$main_js', code);
   console.log('Tray notification CSS fixes + DevTools debug patch applied');
+} else if (code.includes(trayVar + '.setAlwaysOnTop(!0,\"pop-up-menu\")') && code.includes('insertCSS')) {
+  console.log('Tray notification CSS patch already applied - skipping');
 } else {
   console.error('Warning: Tray window pattern not found');
 }
