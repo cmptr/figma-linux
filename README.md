@@ -1,6 +1,23 @@
-# Figma Desktop for Linux
+<p align="center">
+  <img src="https://cdn.sanity.io/images/599r6htc/regionalized/46a7d3cfab60a04ed44406a7bfa9e87dfc918b78-2400x1260.png" alt="Figma" width="200" />
+</p>
 
-Run the **real** Figma Desktop app on Linux — not a browser wrapper, not a web app, but the actual Electron-based desktop client with full functionality.
+<h1 align="center">Figma Desktop for Linux</h1>
+
+<p align="center">
+  Run the <b>real</b> Figma Desktop app on Linux — not a browser wrapper, not a web app,<br/>
+  but the actual Electron-based desktop client with full functionality.
+</p>
+
+<p align="center">
+  <a href="https://github.com/IliyaBrook/figma-linux/releases/latest"><img src="https://img.shields.io/github/v/release/IliyaBrook/figma-linux?style=for-the-badge&label=Release&color=blue" alt="Release" /></a>
+  &nbsp;
+  <img src="https://img.shields.io/badge/Platform-Linux%20x86__64-orange?style=for-the-badge&logo=linux&logoColor=white" alt="Platform" />
+  &nbsp;
+  <img src="https://img.shields.io/badge/Display-X11%20%7C%20Wayland-green?style=for-the-badge" alt="Display Server" />
+  &nbsp;
+  <img src="https://img.shields.io/badge/Package-AppImage%20%7C%20deb%20%7C%20rpm-purple?style=for-the-badge" alt="Packages" />
+</p>
 
 This project extracts the official Figma Desktop Windows installer, patches it for Linux compatibility, and packages it as an **AppImage**, **.deb**, or **.rpm**. You get everything the Windows/macOS client has: system tray icon, `figma://` protocol handling, MCP server support, native window frames, and offline file opening.
 
