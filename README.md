@@ -1,5 +1,5 @@
 <p align="center">
-  <img src="https://cdn.sanity.io/images/599r6htc/regionalized/46a7d3cfab60a04ed44406a7bfa9e87dfc918b78-2400x1260.png" alt="Figma" width="200" />
+  <img src="assets/figma-icon.svg" alt="Figma" width="60" />
 </p>
 
 <h1 align="center">Figma Desktop for Linux</h1>
@@ -25,18 +25,18 @@ This project extracts the official Figma Desktop Windows installer, patches it f
 
 Every other "Figma for Linux" project is just a browser window pretending to be a desktop app. This one is different:
 
-| Feature | This project | Browser wrappers |
-|---|---|---|
-| Full desktop Electron client | Yes | No |
-| System tray icon | Yes | No |
-| `figma://` URL protocol handler | Yes | No |
-| MCP server (`127.0.0.1:3845/mcp`) | Yes | No |
-| Native `.fig` file opening | Yes | No |
-| Dark mode detection | Yes | Varies |
-| Figma i18n locales (7 languages) | Yes | No |
-| Desktop notifications | Yes | Browser-level |
-| Auto desktop integration | Yes | Manual |
-| Allow duplicate tabs (same file in multiple tabs) | Yes | No |
+| Feature                                           | This project | Browser wrappers |
+| ------------------------------------------------- | ------------ | ---------------- |
+| Full desktop Electron client                      | Yes          | No               |
+| System tray icon                                  | Yes          | No               |
+| `figma://` URL protocol handler                   | Yes          | No               |
+| MCP server (`127.0.0.1:3845/mcp`)                 | Yes          | No               |
+| Native `.fig` file opening                        | Yes          | No               |
+| Dark mode detection                               | Yes          | Varies           |
+| Figma i18n locales (7 languages)                  | Yes          | No               |
+| Desktop notifications                             | Yes          | Browser-level    |
+| Auto desktop integration                          | Yes          | Manual           |
+| Allow duplicate tabs (same file in multiple tabs) | Yes          | No               |
 
 ## How It Works
 
@@ -63,6 +63,7 @@ chmod +x figma-desktop-*.AppImage
 ```
 
 On first launch the AppImage automatically:
+
 - Creates a `.desktop` entry in `~/.local/share/applications/`
 - Registers itself as the `figma://` URL handler
 - Copies the Figma icon to your icon theme
@@ -149,11 +150,11 @@ This is the same MCP endpoint available in the Windows/macOS clients. You can co
 
 The launcher handles both X11 and Wayland:
 
-| Environment | Behavior |
-|---|---|
-| **X11** | Works out of the box |
-| **Wayland** (default) | Uses XWayland for compatibility |
-| **Wayland** (native) | Set `FIGMA_USE_WAYLAND=1` for native Wayland |
+| Environment           | Behavior                                     |
+| --------------------- | -------------------------------------------- |
+| **X11**               | Works out of the box                         |
+| **Wayland** (default) | Uses XWayland for compatibility              |
+| **Wayland** (native)  | Set `FIGMA_USE_WAYLAND=1` for native Wayland |
 
 ```bash
 # Force native Wayland mode
@@ -190,10 +191,10 @@ Setting `FIGMA_DEBUG=1` enables verbose logging to stdout and automatically open
 
 Figma Desktop includes built-in DevTools accessible via keyboard shortcuts (menu bar: **Help → Troubleshooting**):
 
-| Shortcut | What it opens |
-|---|---|
-| `Ctrl+Alt+I` | DevTools for the **active tab** (editor, files — main Figma content) |
-| `Shift+Ctrl+Alt+I` | DevTools for the **shell** (window frame, tab bar, sidebar) |
+| Shortcut           | What it opens                                                        |
+| ------------------ | -------------------------------------------------------------------- |
+| `Ctrl+Alt+I`       | DevTools for the **active tab** (editor, files — main Figma content) |
+| `Shift+Ctrl+Alt+I` | DevTools for the **shell** (window frame, tab bar, sidebar)          |
 
 > **Tip:** The menu bar is hidden by default. Press `Alt` to toggle it and access **Help → Troubleshooting** for additional debug options including saving debug info, network logs, and performance logs.
 
