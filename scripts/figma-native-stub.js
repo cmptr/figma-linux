@@ -72,14 +72,27 @@ module.exports = {
 	removeAgentRegistryLoginItem: () => {},
 };
 
-// ---- desktop_rust.node stubs ----
-// Used by main.js directly (kl variable) and by bindings_worker.js utility process
-// Provides font enumeration on Windows/macOS via native Rust code
+// ---- desktop_rust.node replacement ----
+// Used by main.js directly (kl variable) and by bindings_worker.js utility process.
+// Provides font enumeration on Windows/macOS via native Rust code; on Linux we
+// reimplement the same JSON contract in pure JavaScript by parsing TTF/OTF/TTC
+// headers directly. See ./font-enum/ for the implementation and tests.
+let fontEnum;
+try {
+	fontEnum = require('./font-enum');
+} catch (e) {
+	// Defensive fallback: if font-enum fails to load, fall back to empty results
+	// rather than crashing the renderer. Logs go to the Electron console.
+	console.error('[figma-native-stub] failed to load font-enum:', e && e.message);
+	fontEnum = {
+		getFonts: () => JSON.stringify({}),
+		getFontsModifiedAt: () => 0,
+		getModifiedFonts: () => JSON.stringify({}),
+	};
+}
+
 module.exports.desktop_rust = {
-	// Font enumeration - returns JSON string of font data
-	getFonts: () => JSON.stringify({}),
-	// Returns timestamp of last font modification
-	getFontsModifiedAt: () => 0,
-	// Returns JSON string of fonts modified since last check
-	getModifiedFonts: () => JSON.stringify({}),
+	getFonts: () => fontEnum.getFonts(),
+	getFontsModifiedAt: () => fontEnum.getFontsModifiedAt(),
+	getModifiedFonts: () => fontEnum.getModifiedFonts(),
 };

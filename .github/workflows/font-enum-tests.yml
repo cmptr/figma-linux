@@ -1,0 +1,32 @@
+name: font-enum tests
+
+on:
+  push:
+    branches:
+      - master
+      - 'claude/**'
+    paths:
+      - 'scripts/font-enum/**'
+      - 'scripts/figma-native-stub.js'
+      - '.github/workflows/font-enum-tests.yml'
+  pull_request:
+    paths:
+      - 'scripts/font-enum/**'
+      - 'scripts/figma-native-stub.js'
+      - '.github/workflows/font-enum-tests.yml'
+  workflow_dispatch:
+
+jobs:
+  test:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Setup Node.js
+        uses: actions/setup-node@v4
+        with:
+          node-version: '20'
+
+      - name: Run font-enum unit tests
+        run: node --test scripts/font-enum/tests/*.test.js
