@@ -20,7 +20,13 @@ function defaultDirectories() {
 
 function tryFcList() {
 	try {
-		const out = execFileSync('fc-list', [':file'], {
+		// Pattern ":" matches all fonts; element "file" restricts output to just
+		// the file path. The two arguments must stay separate — passing ":file"
+		// as a single argument is parsed as a pattern (not an element selector)
+		// and fc-list falls back to its default full-record format
+		// "/path/to/font.ttf: Family:style=Style", which the regex below would
+		// reject and cause this whole branch to silently return nothing.
+		const out = execFileSync('fc-list', [':', 'file'], {
 			encoding: 'utf8',
 			maxBuffer: 32 * 1024 * 1024,
 			stdio: ['ignore', 'pipe', 'ignore'],
@@ -28,7 +34,7 @@ function tryFcList() {
 		});
 		const paths = new Set();
 		for (const line of out.split('\n')) {
-			// fc-list ":file" emits "/path/to/font.ttf:" with a trailing colon.
+			// Each line from `fc-list : file` is "/path/to/font.ttf:" (trailing colon).
 			const trimmed = line.trim();
 			if (!trimmed) continue;
 			const stripped = trimmed.replace(/:$/, '');
