@@ -45,8 +45,14 @@ build_electron_args() {
 
 	electron_args=()
 
-	# AppImage always needs --no-sandbox due to FUSE constraints
-	[[ $package_type == 'appimage' ]] && electron_args+=('--no-sandbox')
+	# Disable Chromium sandbox for all package types. Figma's
+	# web_app_binding_renderer.js preload uses process.getSystemMemoryInfo()
+	# and process.getHeapStatistics(), which Electron blocks inside a sandboxed
+	# renderer. Without this flag, the preload fails to load and the desktop
+	# bridge never initializes, so OAuth callbacks ("Unable to get profile
+	# information from Google") and IPC silently break. AppImage already needed
+	# this for FUSE; deb/rpm need it for the preload.
+	electron_args+=('--no-sandbox')
 
 	# Disable CustomTitlebar for better Linux integration
 	electron_args+=('--disable-features=CustomTitlebar')
@@ -56,9 +62,6 @@ build_electron_args() {
 		log_message 'X11 session detected'
 		return
 	fi
-
-	# Wayland: deb package needs --no-sandbox in both modes
-	[[ $package_type == 'deb' ]] && electron_args+=('--no-sandbox')
 
 	if [[ $use_x11_on_wayland == true ]]; then
 		# Default: Use X11 via XWayland for compatibility
@@ -78,4 +81,14 @@ build_electron_args() {
 setup_electron_env() {
 	export ELECTRON_FORCE_IS_PACKAGED=true
 	export ELECTRON_USE_SYSTEM_TITLE_BAR=1
+}
+
+# Register figma-desktop as the per-user default handler for figma:// URLs.
+# Idempotent (safe to call on every launch); non-fatal on failure.
+# update-desktop-database alone is enough on some distros (Fedora), but
+# Ubuntu/snap-sandboxed browsers need an explicit xdg-mime default.
+register_url_scheme() {
+	local desktop_id="${1:-figma-desktop.desktop}"
+	command -v xdg-mime > /dev/null 2>&1 || return 0
+	xdg-mime default "$desktop_id" x-scheme-handler/figma > /dev/null 2>&1 || true
 }

@@ -77,6 +77,11 @@ source "/usr/lib/$package_name/launcher-common.sh"
 setup_logging || exit 1
 setup_electron_env
 
+# Ensure figma:// URL scheme is registered for this user.
+# %post sets a system-wide default, but per-user registration here
+# guarantees the handler works even if the system entry was overridden.
+register_url_scheme
+
 # Log startup info
 log_message '--- Figma Desktop Launcher Start ---'
 log_message "Timestamp: \$(date)"
@@ -193,7 +198,23 @@ install -Dm 644 $staging_dir/figma-desktop.desktop %{buildroot}/usr/share/applic
 install -Dm 755 $staging_dir/figma-desktop %{buildroot}/usr/bin/figma-desktop
 
 %post
-update-desktop-database /usr/share/applications &> /dev/null || true
+update-desktop-database /usr/share/applications > /dev/null 2>&1 || true
+
+# Register figma-desktop as the system-wide default for figma:// URLs.
+# Required for sandboxed browsers (xdg-desktop-portal) which do not pick
+# up MimeType= from .desktop files alone. Per-user choices in
+# ~/.config/mimeapps.list still take precedence over this system default.
+mimeapps_file=/usr/share/applications/mimeapps.list
+scheme_line='x-scheme-handler/figma=figma-desktop.desktop'
+if [ ! -f "\$mimeapps_file" ]; then
+    printf '[Default Applications]\n%s\n' "\$scheme_line" > "\$mimeapps_file"
+elif ! grep -q '^x-scheme-handler/figma=' "\$mimeapps_file"; then
+    if grep -q '^\[Default Applications\]' "\$mimeapps_file"; then
+        sed -i "/^\[Default Applications\]/a \$scheme_line" "\$mimeapps_file"
+    else
+        printf '\n[Default Applications]\n%s\n' "\$scheme_line" >> "\$mimeapps_file"
+    fi
+fi
 
 SANDBOX_PATH="/usr/lib/$package_name/node_modules/electron/dist/chrome-sandbox"
 if [ -f "\$SANDBOX_PATH" ]; then
@@ -202,7 +223,14 @@ if [ -f "\$SANDBOX_PATH" ]; then
 fi
 
 %postun
-update-desktop-database /usr/share/applications &> /dev/null || true
+# Only clean up on full removal (\$1 == 0), not on upgrade (\$1 == 1).
+if [ "\$1" = "0" ]; then
+    mimeapps_file=/usr/share/applications/mimeapps.list
+    if [ -f "\$mimeapps_file" ]; then
+        sed -i '\|^x-scheme-handler/figma=figma-desktop\.desktop\$|d' "\$mimeapps_file"
+    fi
+fi
+update-desktop-database /usr/share/applications > /dev/null 2>&1 || true
 
 %files
 %attr(755, root, root) /usr/bin/figma-desktop

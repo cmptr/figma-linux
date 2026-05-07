@@ -97,6 +97,11 @@ source "/usr/lib/$package_name/launcher-common.sh"
 setup_logging || exit 1
 setup_electron_env
 
+# Ensure figma:// URL scheme is registered for this user.
+# Postinst sets a system-wide default, but per-user registration here
+# guarantees the handler works even if the system entry was overridden.
+register_url_scheme
+
 # Log startup info
 log_message '--- Figma Desktop Launcher Start ---'
 log_message "Timestamp: \$(date)"
@@ -188,7 +193,23 @@ set -e
 
 # Update desktop database for MIME types
 echo "Updating desktop database..."
-update-desktop-database /usr/share/applications &> /dev/null || true
+update-desktop-database /usr/share/applications > /dev/null 2>&1 || true
+
+# Register figma-desktop as the system-wide default for figma:// URLs.
+# Required for Ubuntu/snap-sandboxed browsers (xdg-desktop-portal) which
+# do not pick up MimeType= from .desktop files alone. Per-user choices in
+# ~/.config/mimeapps.list still take precedence over this system default.
+mimeapps_file=/usr/share/applications/mimeapps.list
+scheme_line='x-scheme-handler/figma=figma-desktop.desktop'
+if [ ! -f "\$mimeapps_file" ]; then
+    printf '[Default Applications]\n%s\n' "\$scheme_line" > "\$mimeapps_file"
+elif ! grep -q '^x-scheme-handler/figma=' "\$mimeapps_file"; then
+    if grep -q '^\[Default Applications\]' "\$mimeapps_file"; then
+        sed -i "/^\[Default Applications\]/a \$scheme_line" "\$mimeapps_file"
+    else
+        printf '\n[Default Applications]\n%s\n' "\$scheme_line" >> "\$mimeapps_file"
+    fi
+fi
 
 # Set correct permissions for chrome-sandbox
 echo "Setting chrome-sandbox permissions..."
@@ -207,6 +228,35 @@ EOF
 chmod +x "$package_root/DEBIAN/postinst" || exit 1
 echo 'Postinst script created'
 
+# --- Create Postrm Script ---
+# Remove the system-wide figma:// default on uninstall so we don't leave a
+# dangling reference to a desktop file that no longer exists.
+echo 'Creating postrm script...'
+cat > "$package_root/DEBIAN/postrm" << 'EOF'
+#!/bin/sh
+set -e
+
+case "$1" in
+    remove|purge)
+        mimeapps_file=/usr/share/applications/mimeapps.list
+        if [ -f "$mimeapps_file" ]; then
+            sed -i '\|^x-scheme-handler/figma=figma-desktop\.desktop$|d' "$mimeapps_file"
+            # If the [Default Applications] section is now empty, drop the file
+            # entirely to keep the system clean.
+            if [ "$(grep -cv '^\s*$' "$mimeapps_file")" = "1" ] \
+                && grep -q '^\[Default Applications\]$' "$mimeapps_file"; then
+                rm -f "$mimeapps_file"
+            fi
+        fi
+        update-desktop-database /usr/share/applications > /dev/null 2>&1 || true
+        ;;
+esac
+
+exit 0
+EOF
+chmod +x "$package_root/DEBIAN/postrm" || exit 1
+echo 'Postrm script created'
+
 # --- Build .deb Package ---
 echo 'Building .deb package...'
 deb_file="$work_dir/${package_name}_${version}_${architecture}.deb"
@@ -215,6 +265,7 @@ deb_file="$work_dir/${package_name}_${version}_${architecture}.deb"
 echo 'Setting DEBIAN directory permissions...'
 chmod 755 "$package_root/DEBIAN" || exit 1
 chmod 755 "$package_root/DEBIAN/postinst" || exit 1
+chmod 755 "$package_root/DEBIAN/postrm" || exit 1
 
 if ! dpkg-deb --build "$package_root" "$deb_file"; then
 	echo 'Failed to build .deb package' >&2

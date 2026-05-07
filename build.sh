@@ -26,11 +26,19 @@ asar_exec=''
 figma_extract_dir=''
 electron_resources_dest=''
 final_output_path=''
+electron_version=''
 
 # Package metadata (constants)
 readonly PACKAGE_NAME='figma-desktop'
 readonly MAINTAINER='Figma Desktop Linux Maintainers'
 readonly DESCRIPTION='Figma Desktop for Linux'
+
+# Electron version must match the one Figma's Windows build uses, otherwise
+# the bundled app.asar (preload scripts, native bindings) becomes incompatible
+# and auth flows fail with errors like "Unable to load preload script". Detect
+# the version embedded in Figma.exe at build time; this constant is only the
+# fallback when detection fails.
+readonly FALLBACK_ELECTRON_VERSION='39.8.6'
 
 # Figma download URLs
 readonly FIGMA_RELEASES_URL='https://desktop.figma.com/win/RELEASES'
@@ -410,8 +418,8 @@ setup_electron_asar() {
 	[[ ! -f $asar_bin_path ]] && echo 'Asar binary not found.' && install_needed=true
 
 	if [[ $install_needed == true ]]; then
-		echo "Installing Electron and Asar locally into $work_dir..."
-		if ! npm install --no-save electron @electron/asar; then
+		echo "Installing Electron $electron_version and Asar locally into $work_dir..."
+		if ! npm install --no-save "electron@$electron_version" @electron/asar; then
 			echo 'Failed to install Electron and/or Asar locally.' >&2
 			cd "$project_root" || exit 1
 			exit 1
@@ -561,6 +569,30 @@ download_figma_installer() {
 #===============================================================================
 # Patching Functions
 #===============================================================================
+
+detect_electron_version() {
+	section_header 'Detecting Electron Version'
+
+	# Figma's Windows binary embeds its Electron version in the user-agent
+	# string, e.g. "Electron/39.8.6". The bundled app.asar (preload scripts,
+	# native bindings) only works on a matching Electron major.
+	local exe_path="$figma_extract_dir/lib/net45/Figma.exe"
+	local detected=''
+	if [[ -f $exe_path ]]; then
+		detected=$(grep -aoE 'Electron/[0-9]+\.[0-9]+\.[0-9]+' "$exe_path" \
+			| head -1 | sed 's|Electron/||')
+	fi
+
+	if [[ -n $detected ]]; then
+		electron_version="$detected"
+		echo "Detected Electron version from Figma.exe: $electron_version"
+	else
+		electron_version="$FALLBACK_ELECTRON_VERSION"
+		echo "Could not detect Electron version, using fallback: $electron_version" >&2
+	fi
+
+	section_footer 'Detecting Electron Version'
+}
 
 extract_app_asar() {
 	section_header 'Extracting app.asar'
@@ -1354,13 +1386,18 @@ main() {
 	check_dependencies
 	setup_work_directory
 	setup_nodejs
-	setup_electron_asar
 
-	# Phase 2: Download and extract
+	# Phase 2: Download and extract Figma
 	resolve_figma_version
 	download_figma_installer
 
-	# Phase 3: Patch and prepare
+	# Phase 3: Detect Figma's Electron version, then install matching Electron
+	# Order matters: setup_electron_asar must run AFTER download_figma_installer
+	# so we can read Figma.exe to learn which Electron version it ships with.
+	detect_electron_version
+	setup_electron_asar
+
+	# Phase 4: Patch and prepare
 	extract_app_asar
 	patch_app_asar
 	finalize_app_asar
