@@ -417,6 +417,19 @@ setup_electron_asar() {
 			exit 1
 		fi
 		echo 'Electron and Asar installation command finished.'
+
+		# Electron 42+ removed the postinstall hook that downloads the platform
+		# binary, so npm install only fetches the npm package. Run install.js
+		# explicitly to download and extract the actual Electron runtime.
+		local electron_install_script="$work_dir/node_modules/electron/install.js"
+		if [[ ! -d $electron_dist_path && -f $electron_install_script ]]; then
+			echo 'Downloading Electron platform binary (install.js)...'
+			if ! node "$electron_install_script"; then
+				echo 'Failed to download Electron platform binary.' >&2
+				cd "$project_root" || exit 1
+				exit 1
+			fi
+		fi
 	else
 		echo 'Local Electron distribution and Asar binary already present.'
 	fi
