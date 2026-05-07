@@ -417,6 +417,15 @@ setup_electron_asar() {
 			exit 1
 		fi
 		echo 'Electron and Asar installation command finished.'
+		# Electron >= 37 removed the implicit postinstall download. Run install-electron explicitly.
+		if [[ ! -d "$work_dir/node_modules/electron/dist" && -f "$work_dir/node_modules/electron/install.js" ]]; then
+			echo 'Running explicit Electron binary install (post-install download)...'
+			if ! node "$work_dir/node_modules/electron/install.js"; then
+				echo 'Failed to download Electron binary distribution.' >&2
+				cd "$project_root" || exit 1
+				exit 1
+			fi
+		fi
 	else
 		echo 'Local Electron distribution and Asar binary already present.'
 	fi
