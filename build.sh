@@ -852,6 +852,14 @@ console.log('Updated package.json: main entry set to frame-fix-entry.js');
 	cp "$project_root/scripts/figma-native-stub.js" \
 		app.asar.contents/figma-native-stub.js || exit 1
 
+	# Copy the font-enum implementation (pure JS port of desktop_rust font APIs).
+	# Excludes the tests/ subdirectory which is dev-only.
+	mkdir -p app.asar.contents/font-enum || exit 1
+	for js_file in "$project_root"/scripts/font-enum/*.js; do
+		[[ -f $js_file ]] || continue
+		cp "$js_file" app.asar.contents/font-enum/ || exit 1
+	done
+
 	# Patch main.js to load our stub instead of the native .node files
 	echo 'Patching native module loading in main.js...'
 	if [[ -f $main_js ]]; then
