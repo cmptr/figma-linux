@@ -8,6 +8,71 @@ try {
 	// May fail in utility process where electron main APIs aren't available
 }
 
+// Optional integration with external font agents such as neetly/figma-agent-linux.
+// Figma's desktop_rust.getFonts() API is synchronous, so network I/O happens in
+// the background and getFonts() returns the latest cached agent result when one
+// is available. The built-in JS font scanner remains the fallback.
+const http = require('http');
+
+const FONT_AGENT_URL = process.env.FIGMA_FONT_AGENT_URL || 'http://127.0.0.1:44950/figma/font-files';
+const FONT_AGENT_DISABLED = process.env.FIGMA_FONT_AGENT_DISABLED === '1';
+const FONTS_CACHE_TTL_MS = 60_000;
+
+let cachedAgentFontsJson = null;
+let cachedAgentFontsTimestamp = 0;
+let fetchInProgress = false;
+
+function normalizeAgentFontsResponse(data) {
+	try {
+		const parsed = JSON.parse(data);
+		if (parsed && typeof parsed === 'object' && parsed.fontFiles && typeof parsed.fontFiles === 'object') {
+			return JSON.stringify(parsed.fontFiles);
+		}
+		if (parsed && typeof parsed === 'object' && !Array.isArray(parsed)) {
+			return JSON.stringify(parsed);
+		}
+	} catch (_err) {
+		// Ignore malformed agent responses and keep the local scanner fallback.
+	}
+	return null;
+}
+
+function fetchAgentFontsInBackground() {
+	if (FONT_AGENT_DISABLED || fetchInProgress) return;
+	fetchInProgress = true;
+
+	try {
+		const req = http.get(FONT_AGENT_URL, { timeout: 2000 }, (res) => {
+			let data = '';
+			res.setEncoding('utf8');
+			res.on('data', (chunk) => { data += chunk; });
+			res.on('end', () => {
+				fetchInProgress = false;
+				if (res.statusCode !== 200) return;
+				const normalized = normalizeAgentFontsResponse(data);
+				if (!normalized) return;
+				cachedAgentFontsJson = normalized;
+				cachedAgentFontsTimestamp = Date.now();
+			});
+		});
+		req.on('error', () => { fetchInProgress = false; });
+		req.on('timeout', () => {
+			req.destroy();
+			fetchInProgress = false;
+		});
+	} catch (_err) {
+		fetchInProgress = false;
+	}
+}
+
+function getFontsFromExternalAgent() {
+	if (FONT_AGENT_DISABLED) return null;
+	if (!cachedAgentFontsJson || Date.now() - cachedAgentFontsTimestamp >= FONTS_CACHE_TTL_MS) {
+		fetchAgentFontsInBackground();
+	}
+	return cachedAgentFontsJson;
+}
+
 // ---- bindings.node stubs ----
 // All methods that xe.* references in main.js
 
@@ -91,8 +156,10 @@ try {
 	};
 }
 
+fetchAgentFontsInBackground();
+
 module.exports.desktop_rust = {
-	getFonts: () => fontEnum.getFonts(),
+	getFonts: () => getFontsFromExternalAgent() || fontEnum.getFonts(),
 	getFontsModifiedAt: () => fontEnum.getFontsModifiedAt(),
 	getModifiedFonts: () => fontEnum.getModifiedFonts(),
 };

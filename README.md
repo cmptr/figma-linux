@@ -37,6 +37,7 @@ Every other "Figma for Linux" project is just a browser window pretending to be 
 | Desktop notifications                             | Yes          | Browser-level    |
 | Auto desktop integration                          | Yes          | Manual           |
 | Allow duplicate tabs (same file in multiple tabs) | Yes          | No               |
+| Local font agent support                          | Yes          | Varies           |
 
 ## How It Works
 
@@ -46,6 +47,7 @@ The build script performs a multi-stage pipeline:
 2. **Patch** — Applies Linux-specific fixes:
    - Enables native window frames (Figma ships with `frame:false` for custom titlebar)
    - Stubs Windows/macOS native modules (`bindings.node`, `desktop_rust.node`) with JS equivalents
+   - Spoofs the renderer User-Agent as Windows so Figma enables its local font agent flow
    - Fixes `handleCommandLineArgs` to find `figma://` URLs in Linux's argv layout
    - Hides the Electron menu bar while keeping the native frame
 3. **Package** — Bundles a matching Electron binary + patched `app.asar` into your chosen format
@@ -69,6 +71,16 @@ On first launch the AppImage automatically:
 - Copies the Figma icon to your icon theme
 
 After that, Figma appears in your application menu like any other app.
+
+### Local Fonts
+
+The app includes a built-in JS fallback that exposes installed fonts through Figma's desktop font APIs. For the closest match to the official Windows local-font flow, install [figma-agent-linux](https://github.com/neetly/figma-agent-linux) as a user service:
+
+```bash
+bash -c "$(curl -fsSL https://raw.githubusercontent.com/neetly/figma-agent-linux/main/files/install.sh)"
+```
+
+When the agent is running on `127.0.0.1:44950`, Figma can use it directly for local fonts and previews. You can point the desktop stub at another endpoint with `FIGMA_FONT_AGENT_URL`, or disable the agent lookup with `FIGMA_FONT_AGENT_DISABLED=1`.
 
 ### Option 2: Build from Source
 
