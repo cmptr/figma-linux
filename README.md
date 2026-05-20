@@ -74,13 +74,9 @@ After that, Figma appears in your application menu like any other app.
 
 ### Local Fonts
 
-The app includes a built-in JS fallback that exposes installed fonts through Figma's desktop font APIs. For the closest match to the official Windows local-font flow, install [figma-agent-linux](https://github.com/neetly/figma-agent-linux) as a user service:
+The app includes a built-in font helper, so AppImage, deb, and rpm builds can expose installed system/user fonts without a separate `figma-agent-linux` install. On launch, the patched native stub starts a localhost helper compatible with [neetly/figma-agent-linux](https://github.com/neetly/figma-agent-linux) at `127.0.0.1:44950` and also serves the same data through Figma's desktop font APIs.
 
-```bash
-bash -c "$(curl -fsSL https://raw.githubusercontent.com/neetly/figma-agent-linux/main/files/install.sh)"
-```
-
-When the agent is running on `127.0.0.1:44950`, Figma can use it directly for local fonts and previews. You can point the desktop stub at another endpoint with `FIGMA_FONT_AGENT_URL`, or disable the agent lookup with `FIGMA_FONT_AGENT_DISABLED=1`.
+If you already run an external helper on that port, this app leaves it alone. You can point the desktop stub at another endpoint with `FIGMA_FONT_AGENT_URL`, disable external agent lookup with `FIGMA_FONT_AGENT_DISABLED=1`, or disable the built-in localhost helper with `FIGMA_BUILTIN_FONT_AGENT_DISABLED=1`.
 
 ### Option 2: Build from Source
 
@@ -220,6 +216,7 @@ figma-desktop-linux/
   scripts/
     frame-fix-wrapper.js            # BrowserWindow monkey-patch for native frames
     figma-native-stub.js            # JS stubs for Windows/macOS native modules
+    font-enum/                      # Pure JS local/system font scanner + parser
     launcher-common.sh              # Shared X11/Wayland detection logic
     build-appimage.sh               # AppImage packaging
     build-deb-package.sh            # Debian packaging
@@ -232,6 +229,7 @@ figma-desktop-linux/
 - **`titleBarStyle:"hidden"`** replaced with `"default"`
 - **`require("./bindings.node")`** redirected to `figma-native-stub.js` (40+ stubbed methods)
 - **`require("./desktop_rust.node")`** redirected to stub
+- **Local font helper** started in-process at `127.0.0.1:44950` with `/figma/font-files` and `/figma/font-file`
 - **`handleCommandLineArgs`** rewritten to scan all argv entries (Linux passes CLI flags before the app path)
 - **`package.json` main entry** updated to load `frame-fix-wrapper.js` before the original entry point
 - **`openFileTab` default parameter** patched to support the "Allow Duplicate Tabs" toggle via system tray

@@ -13,14 +13,18 @@ try {
 // the background and getFonts() returns the latest cached agent result when one
 // is available. The built-in JS font scanner remains the fallback.
 const http = require('http');
+const fs = require('fs');
+const { URL } = require('url');
 
 const FONT_AGENT_URL = process.env.FIGMA_FONT_AGENT_URL || 'http://127.0.0.1:44950/figma/font-files';
 const FONT_AGENT_DISABLED = process.env.FIGMA_FONT_AGENT_DISABLED === '1';
+const BUILTIN_FONT_AGENT_DISABLED = process.env.FIGMA_BUILTIN_FONT_AGENT_DISABLED === '1';
 const FONTS_CACHE_TTL_MS = 60_000;
 
 let cachedAgentFontsJson = null;
 let cachedAgentFontsTimestamp = 0;
 let fetchInProgress = false;
+let builtInFontAgentServer = null;
 
 function normalizeAgentFontsResponse(data) {
 	try {
@@ -71,6 +75,111 @@ function getFontsFromExternalAgent() {
 		fetchAgentFontsInBackground();
 	}
 	return cachedAgentFontsJson;
+}
+
+function writeAgentCorsHeaders(res) {
+	res.setHeader('Access-Control-Allow-Origin', 'https://www.figma.com');
+	res.setHeader('Access-Control-Allow-Methods', 'GET, OPTIONS');
+	res.setHeader('Access-Control-Allow-Headers', 'Content-Type');
+	res.setHeader('Access-Control-Allow-Private-Network', 'true');
+	res.setHeader('Vary', 'Origin');
+}
+
+function sendAgentJson(res, statusCode, payload) {
+	writeAgentCorsHeaders(res);
+	res.writeHead(statusCode, { 'Content-Type': 'application/json; charset=utf-8' });
+	res.end(payload);
+}
+
+function serveKnownFontFile(reqUrl, res) {
+	let filePath = '';
+	try {
+		filePath = reqUrl.searchParams.get('file') || '';
+	} catch (_err) {
+		filePath = '';
+	}
+	if (!filePath) {
+		sendAgentJson(res, 400, JSON.stringify({ error: 'missing file' }));
+		return;
+	}
+
+	// Refresh the cache, then only serve files that the scanner identified as
+	// fonts. This keeps the local helper from becoming an arbitrary file server.
+	try {
+		fontEnum.getFonts();
+	} catch (_err) {
+		sendAgentJson(res, 500, JSON.stringify({ error: 'font scan failed' }));
+		return;
+	}
+
+	if (!fontEnum.hasKnownFontFile(filePath)) {
+		sendAgentJson(res, 404, JSON.stringify({ error: 'font not found' }));
+		return;
+	}
+
+	writeAgentCorsHeaders(res);
+	res.writeHead(200, { 'Content-Type': 'application/octet-stream' });
+	fs.createReadStream(filePath)
+		.on('error', () => {
+			if (!res.headersSent) {
+				sendAgentJson(res, 404, JSON.stringify({ error: 'font not found' }));
+			} else {
+				res.destroy();
+			}
+		})
+		.pipe(res);
+}
+
+function startBuiltInFontAgent() {
+	if (BUILTIN_FONT_AGENT_DISABLED || builtInFontAgentServer || !fontEnum) return;
+
+	let bindUrl;
+	try {
+		bindUrl = new URL(FONT_AGENT_URL);
+	} catch (_err) {
+		bindUrl = new URL('http://127.0.0.1:44950/figma/font-files');
+	}
+
+	const hostname = bindUrl.hostname || '127.0.0.1';
+	const port = Number(bindUrl.port || 44950);
+	const server = http.createServer((req, res) => {
+		writeAgentCorsHeaders(res);
+		if (req.method === 'OPTIONS') {
+			res.writeHead(204);
+			res.end();
+			return;
+		}
+		if (req.method !== 'GET') {
+			sendAgentJson(res, 405, JSON.stringify({ error: 'method not allowed' }));
+			return;
+		}
+
+		const reqUrl = new URL(req.url || '/', `http://${hostname}:${port}`);
+		if (reqUrl.pathname === '/figma/version') {
+			sendAgentJson(res, 200, JSON.stringify({ package: 'figma-agent-linux', version: 1 }));
+		} else if (reqUrl.pathname === '/figma/font-files') {
+			sendAgentJson(res, 200, fontEnum.getFontFilesPayload());
+		} else if (reqUrl.pathname === '/figma/font-file') {
+			serveKnownFontFile(reqUrl, res);
+		} else if (reqUrl.pathname === '/figma/font-preview') {
+			// Font preview is optional in neetly/figma-agent-linux. Figma can still
+			// load and use the fonts when this endpoint is unavailable.
+			sendAgentJson(res, 404, JSON.stringify({ error: 'font preview unavailable' }));
+		} else {
+			sendAgentJson(res, 404, JSON.stringify({ error: 'not found' }));
+		}
+	});
+
+	server.on('error', (err) => {
+		// EADDRINUSE normally means the user already runs figma-agent-linux.
+		// Keep startup non-fatal and let getFonts() use the native scanner fallback.
+		if (err && err.code !== 'EADDRINUSE') {
+			console.error('[figma-native-stub] built-in font helper failed:', err.message);
+		}
+	});
+	server.listen(port, hostname, () => {
+		builtInFontAgentServer = server;
+	});
 }
 
 // ---- bindings.node stubs ----
@@ -151,12 +260,21 @@ try {
 	console.error('[figma-native-stub] failed to load font-enum:', e && e.message);
 	fontEnum = {
 		getFonts: () => JSON.stringify({}),
+		getFontFilesPayload: () => JSON.stringify({
+			fontFiles: {},
+			modified_at: null,
+			modified_fonts: null,
+			package: 'figma-agent-linux',
+			version: 1,
+		}),
 		getFontsModifiedAt: () => 0,
 		getModifiedFonts: () => JSON.stringify({}),
+		hasKnownFontFile: () => false,
 	};
 }
 
 fetchAgentFontsInBackground();
+startBuiltInFontAgent();
 
 module.exports.desktop_rust = {
 	getFonts: () => getFontsFromExternalAgent() || fontEnum.getFonts(),

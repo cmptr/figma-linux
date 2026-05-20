@@ -26,6 +26,25 @@ function buildResultObject(fontMap) {
 	return out;
 }
 
+function faceWithAgentMetadata(face, modifiedAtMs) {
+	return {
+		...face,
+		modified_at: Math.floor((modifiedAtMs || 0) / 1000),
+		user_installed: true,
+	};
+}
+
+function buildFontFilesObject(fontMap, mtimeMap) {
+	const out = {};
+	for (const [p, faces] of fontMap.entries()) {
+		if (faces.length > 0) {
+			const modifiedAtMs = mtimeMap.get(p) || 0;
+			out[p] = faces.map((face) => faceWithAgentMetadata(face, modifiedAtMs));
+		}
+	}
+	return out;
+}
+
 function fullScan(options) {
 	const paths = findFontFiles(options);
 	const mtimes = statMTimes(paths);
@@ -51,6 +70,21 @@ function getFonts(options) {
 		if (faces.length > 0) result[p] = faces;
 	}
 	return JSON.stringify(result);
+}
+
+// Returns JSON matching neetly/figma-agent-linux's /figma/font-files endpoint.
+// Figma's web surface probes this localhost helper when the user agent advertises
+// a supported desktop OS, so the packaged app exposes the same shape in-process.
+function getFontFilesPayload(options) {
+	const fonts = fullScan(options);
+	const fontFiles = buildFontFilesObject(fonts, cachedMTimes);
+	return JSON.stringify({
+		fontFiles,
+		modified_at: null,
+		modified_fonts: null,
+		package: 'figma-agent-linux',
+		version: 1,
+	});
 }
 
 // Returns the most recent mtime across known font files (in ms).
@@ -101,14 +135,21 @@ function getModifiedFonts(options) {
 	return JSON.stringify(result);
 }
 
+function hasKnownFontFile(filePath) {
+	return cachedFonts.has(filePath) && (cachedFonts.get(filePath) || []).length > 0;
+}
+
 module.exports = {
 	getFonts,
+	getFontFilesPayload,
 	getFontsModifiedAt,
 	getModifiedFonts,
+	hasKnownFontFile,
 	// Test-only helpers (not part of the public contract).
 	_internal: {
 		resetCacheForTests,
 		buildResultObject,
+		buildFontFilesObject,
 		fullScan,
 	},
 };

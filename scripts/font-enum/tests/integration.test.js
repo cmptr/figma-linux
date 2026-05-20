@@ -125,3 +125,28 @@ test('getFonts() returns valid JSON for empty font directory', () => {
 		fs.rmSync(dir, { recursive: true, force: true });
 	}
 });
+
+test('getFontFilesPayload() matches figma-agent-linux endpoint shape', () => {
+	fontEnum._internal.resetCacheForTests();
+	const dir = makeTempFontDir();
+	try {
+		const file = path.join(dir, 'agent.ttf');
+		fs.writeFileSync(file, buildTTF({ family: 'Agent', style: 'Regular' }));
+
+		const parsed = JSON.parse(fontEnum.getFontFilesPayload({ directories: [dir] }));
+		assert.equal(parsed.package, 'figma-agent-linux');
+		assert.equal(parsed.version, 1);
+		assert.equal(parsed.modified_at, null);
+		assert.equal(parsed.modified_fonts, null);
+		assert.deepEqual(Object.keys(parsed.fontFiles), [file]);
+
+		const face = parsed.fontFiles[file][0];
+		for (const key of ['postscript', 'family', 'id', 'style', 'weight', 'stretch', 'italic']) {
+			assert.ok(Object.hasOwn(face, key), `agent payload face: missing ${key}`);
+		}
+		assert.equal(typeof face.modified_at, 'number');
+		assert.equal(face.user_installed, true);
+	} finally {
+		fs.rmSync(dir, { recursive: true, force: true });
+	}
+});
