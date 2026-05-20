@@ -1,5 +1,29 @@
-.idea
+.idea/
 .jbeval
+
+# Build working directories
 build/
-figma-desktop*.AppImage
-figma-desktop*.deb
+dist/
+out/
+AppDir/
+*.AppDir/
+app.asar.contents/
+rpm-staging/
+rpmbuild/
+
+# Generated packages
+*.AppImage
+*.deb
+*.rpm
+
+# Downloaded/extracted upstream artifacts
+FigmaSetup*.exe
+Figma-*.nupkg
+node-v*-linux-*.tar.*
+appimagetool-*.AppImage
+
+# Package manager output
+node_modules/
+npm-debug.log*
+yarn-debug.log*
+yarn-error.log*
