@@ -4,9 +4,22 @@ const originalRequire = Module.prototype.require;
 
 console.log('[Frame Fix] Wrapper loaded');
 
+const WIN_USER_AGENT = `Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/${process.versions.chrome} Safari/537.36`;
+
+function applyWindowsUserAgent(webContents) {
+	if (process.platform !== 'linux' || !webContents) return;
+	try {
+		webContents.setUserAgent(WIN_USER_AGENT);
+	} catch (_err) {
+		// Some utility views may not expose a mutable user agent.
+	}
+}
+
 // Build the patched BrowserWindow class and Menu interceptor once,
 // on first require('electron'), then reuse via Proxy on every access.
 let PatchedBrowserWindow = null;
+let PatchedWebContentsView = null;
+let PatchedBrowserView = null;
 let patchedSetApplicationMenu = null;
 
 Module.prototype.require = function(id) {
@@ -17,6 +30,8 @@ Module.prototype.require = function(id) {
 		if (!PatchedBrowserWindow) {
 			console.log('[Frame Fix] Intercepting electron module');
 			const OriginalBrowserWindow = result.BrowserWindow;
+			const OriginalWebContentsView = result.WebContentsView;
+			const OriginalBrowserView = result.BrowserView;
 			const OriginalMenu = result.Menu;
 
 			PatchedBrowserWindow = class BrowserWindowWithFrame extends OriginalBrowserWindow {
@@ -46,6 +61,10 @@ Module.prototype.require = function(id) {
 					super(options);
 
 					if (process.platform === 'linux') {
+						if (!isTrayWindow) {
+							applyWindowsUserAgent(this.webContents);
+						}
+
 						// Hide menu bar after window creation
 						this.setMenuBarVisibility(false);
 
@@ -171,6 +190,24 @@ Module.prototype.require = function(id) {
 				}
 			};
 
+			if (OriginalWebContentsView) {
+				PatchedWebContentsView = class WebContentsViewWithUserAgent extends OriginalWebContentsView {
+					constructor(options) {
+						super(options);
+						applyWindowsUserAgent(this.webContents);
+					}
+				};
+			}
+
+			if (OriginalBrowserView) {
+				PatchedBrowserView = class BrowserViewWithUserAgent extends OriginalBrowserView {
+					constructor(options) {
+						super(options);
+						applyWindowsUserAgent(this.webContents);
+					}
+				};
+			}
+
 			// Copy static methods and properties from original
 			for (const key of Object.getOwnPropertyNames(OriginalBrowserWindow)) {
 				if (key !== 'prototype' && key !== 'length' && key !== 'name') {
@@ -208,6 +245,8 @@ Module.prototype.require = function(id) {
 		return new Proxy(result, {
 			get(target, prop, receiver) {
 				if (prop === 'BrowserWindow') return PatchedBrowserWindow;
+				if (prop === 'WebContentsView' && PatchedWebContentsView) return PatchedWebContentsView;
+				if (prop === 'BrowserView' && PatchedBrowserView) return PatchedBrowserView;
 				if (prop === 'Menu') {
 					// Return a proxy for Menu that intercepts setApplicationMenu
 					const originalMenu = target.Menu;

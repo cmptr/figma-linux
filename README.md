@@ -37,6 +37,7 @@ Every other "Figma for Linux" project is just a browser window pretending to be 
 | Desktop notifications                             | Yes          | Browser-level    |
 | Auto desktop integration                          | Yes          | Manual           |
 | Allow duplicate tabs (same file in multiple tabs) | Yes          | No               |
+| Local font agent support                          | Yes          | Varies           |
 
 ## How It Works
 
@@ -46,6 +47,7 @@ The build script performs a multi-stage pipeline:
 2. **Patch** — Applies Linux-specific fixes:
    - Enables native window frames (Figma ships with `frame:false` for custom titlebar)
    - Stubs Windows/macOS native modules (`bindings.node`, `desktop_rust.node`) with JS equivalents
+   - Spoofs the renderer User-Agent as Windows so Figma enables its local font agent flow
    - Fixes `handleCommandLineArgs` to find `figma://` URLs in Linux's argv layout
    - Hides the Electron menu bar while keeping the native frame
 3. **Package** — Bundles a matching Electron binary + patched `app.asar` into your chosen format
@@ -69,6 +71,12 @@ On first launch the AppImage automatically:
 - Copies the Figma icon to your icon theme
 
 After that, Figma appears in your application menu like any other app.
+
+### Local Fonts
+
+The app includes a built-in font helper, so AppImage, deb, and rpm builds can expose installed system/user fonts without a separate `figma-agent-linux` install. On launch, the patched native stub starts a localhost helper compatible with [neetly/figma-agent-linux](https://github.com/neetly/figma-agent-linux) at `127.0.0.1:44950` and also serves the same data through Figma's desktop font APIs.
+
+If you already run an external helper on that port, this app leaves it alone. You can point the desktop stub at another endpoint with `FIGMA_FONT_AGENT_URL`, disable external agent lookup with `FIGMA_FONT_AGENT_DISABLED=1`, or disable the built-in localhost helper with `FIGMA_BUILTIN_FONT_AGENT_DISABLED=1`.
 
 ### Option 2: Build from Source
 
@@ -208,6 +216,7 @@ figma-desktop-linux/
   scripts/
     frame-fix-wrapper.js            # BrowserWindow monkey-patch for native frames
     figma-native-stub.js            # JS stubs for Windows/macOS native modules
+    font-enum/                      # Pure JS local/system font scanner + parser
     launcher-common.sh              # Shared X11/Wayland detection logic
     build-appimage.sh               # AppImage packaging
     build-deb-package.sh            # Debian packaging
@@ -220,6 +229,7 @@ figma-desktop-linux/
 - **`titleBarStyle:"hidden"`** replaced with `"default"`
 - **`require("./bindings.node")`** redirected to `figma-native-stub.js` (40+ stubbed methods)
 - **`require("./desktop_rust.node")`** redirected to stub
+- **Local font helper** started in-process at `127.0.0.1:44950` with `/figma/font-files` and `/figma/font-file`
 - **`handleCommandLineArgs`** rewritten to scan all argv entries (Linux passes CLI flags before the app path)
 - **`package.json` main entry** updated to load `frame-fix-wrapper.js` before the original entry point
 - **`openFileTab` default parameter** patched to support the "Allow Duplicate Tabs" toggle via system tray
