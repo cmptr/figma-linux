@@ -1,8 +1,7 @@
-<p align="center">
-  <img src="assets/figma-icon.svg" alt="Figma" width="60" />
-</p>
-
-<h1 align="center">Figma Desktop for Linux</h1>
+<h1 align="center">
+  <img src="assets/figma-icon.svg" alt="Figma" width="38" valign="middle" />
+  Figma Desktop for Linux
+</h1>
 
 <p align="center">
   Run the <b>real</b> Figma Desktop app on Linux — not a browser wrapper, not a web app,<br/>
@@ -19,25 +18,25 @@
   <img src="https://img.shields.io/badge/Package-AppImage%20%7C%20deb%20%7C%20rpm-purple?style=for-the-badge" alt="Packages" />
 </p>
 
-This project extracts the official Figma Desktop Windows installer, patches it for Linux compatibility, and packages it as an **AppImage**, **.deb**, or **.rpm**. You get everything the Windows/macOS client has: system tray icon, `figma://` protocol handling, MCP server support, native window frames, and offline file opening.
+This project extracts the official Figma Desktop Windows installer, patches it for Linux compatibility, and packages it as an **AppImage**, **.deb**, or **.rpm**. You get the real desktop client experience: system tray icon, `figma://` protocol handling, MCP server support, native window frames, local font support, and offline file opening.
 
 ## Why This Exists
 
 Every other "Figma for Linux" project is just a browser window pretending to be a desktop app. This one is different:
 
-| Feature                                           | This project | Browser wrappers |
-| ------------------------------------------------- | ------------ | ---------------- |
-| Full desktop Electron client                      | Yes          | No               |
-| System tray icon                                  | Yes          | No               |
-| `figma://` URL protocol handler                   | Yes          | No               |
-| MCP server (`127.0.0.1:3845/mcp`)                 | Yes          | No               |
-| Native `.fig` file opening                        | Yes          | No               |
-| Dark mode detection                               | Yes          | Varies           |
-| Figma i18n locales (7 languages)                  | Yes          | No               |
-| Desktop notifications                             | Yes          | Browser-level    |
-| Auto desktop integration                          | Yes          | Manual           |
-| Allow duplicate tabs (same file in multiple tabs) | Yes          | No               |
-| Local font agent support                          | Yes          | Varies           |
+| Feature                                           | This project                  | Browser wrappers |
+| ------------------------------------------------- | ----------------------------- | ---------------- |
+| Full desktop Electron client                      | Yes                           | No               |
+| System tray icon                                  | Yes                           | No               |
+| `figma://` URL protocol handler                   | Yes                           | No               |
+| MCP server (`127.0.0.1:3845/mcp`)                 | Yes                           | No               |
+| Native `.fig` file opening                        | Yes                           | No               |
+| Dark mode detection                               | Yes                           | Varies           |
+| Figma i18n locales (7 languages)                  | Yes                           | No               |
+| Desktop notifications                             | Yes                           | Browser-level    |
+| Auto desktop integration                          | Yes                           | Manual           |
+| Allow duplicate tabs (same file in multiple tabs) | Yes                           | No               |
+| Built-in local font helper                        | Yes, no separate agent needed | No               |
 
 ## How It Works
 
@@ -47,9 +46,10 @@ The build script performs a multi-stage pipeline:
 2. **Patch** — Applies Linux-specific fixes:
    - Enables native window frames (Figma ships with `frame:false` for custom titlebar)
    - Stubs Windows/macOS native modules (`bindings.node`, `desktop_rust.node`) with JS equivalents
-   - Spoofs the renderer User-Agent as Windows so Figma enables its local font agent flow
+   - Spoofs the renderer User-Agent as Windows so Figma enables the desktop/local font flows
+   - Starts a built-in Linux font helper and scans system/user font directories
    - Fixes `handleCommandLineArgs` to find `figma://` URLs in Linux's argv layout
-   - Hides the Electron menu bar while keeping the native frame
+   - Fixes Linux tray behavior, native frame sizing, menu visibility, and duplicate-tab handling
 3. **Package** — Bundles a matching Electron binary + patched `app.asar` into your chosen format
 4. **Integrate** — On first launch, the AppImage automatically registers a `.desktop` file and `figma://` URI handler
 
@@ -57,7 +57,7 @@ The build script performs a multi-stage pipeline:
 
 ### Option 1: Download Pre-built AppImage (Recommended)
 
-Grab the latest AppImage from the [Releases](https://github.com/IliyaBrook/figma-linux/releases) page — no build step required:
+Grab the latest AppImage from the [Releases](https://github.com/IliyaBrook/figma-linux/releases) page — no build step required. New project builds are published there as AppImage, deb, and rpm artifacts.
 
 ```bash
 chmod +x figma-desktop-*.AppImage
@@ -74,9 +74,9 @@ After that, Figma appears in your application menu like any other app.
 
 ### Local Fonts
 
-The app includes a built-in font helper, so AppImage, deb, and rpm builds can expose installed system/user fonts without a separate `figma-agent-linux` install. On launch, the patched native stub starts a localhost helper compatible with [neetly/figma-agent-linux](https://github.com/neetly/figma-agent-linux) at `127.0.0.1:44950` and also serves the same data through Figma's desktop font APIs.
+The app includes a built-in font helper, so AppImage, deb, and rpm builds expose installed system/user fonts without a separate `figma-agent-linux` install. On launch, the patched native stub starts a localhost helper compatible with [neetly/figma-agent-linux](https://github.com/neetly/figma-agent-linux) at `127.0.0.1:44950` and serves the same data through Figma's desktop font APIs.
 
-If you already run an external helper on that port, this app leaves it alone. You can point the desktop stub at another endpoint with `FIGMA_FONT_AGENT_URL`, disable external agent lookup with `FIGMA_FONT_AGENT_DISABLED=1`, or disable the built-in localhost helper with `FIGMA_BUILTIN_FONT_AGENT_DISABLED=1`.
+This covers the normal font picker and the **Installed by you** flow. If you already run an external helper on that port, this app leaves it alone. You can point the desktop stub at another endpoint with `FIGMA_FONT_AGENT_URL`, disable external agent lookup with `FIGMA_FONT_AGENT_DISABLED=1`, or disable the built-in localhost helper with `FIGMA_BUILTIN_FONT_AGENT_DISABLED=1`.
 
 ### Option 2: Build from Source
 
@@ -141,7 +141,7 @@ make build-rpm      # Build .rpm
 make run            # Run the built AppImage
 make run-debug      # Run with FIGMA_DEBUG=1 (logs to stdout)
 make clean          # Remove all build artifacts
-make url            # Print the latest Figma download URLs
+make url            # Check Figma RELEASES and installer URLs
 ```
 
 ## MCP Server
@@ -212,7 +212,7 @@ Figma Desktop includes built-in DevTools accessible via keyboard shortcuts (menu
 figma-desktop-linux/
   build.sh                          # Main orchestrator
   Makefile                          # Build/run shortcuts
-  get-url-x64.sh                   # Print latest Figma download URLs
+  figma-version-tool.sh             # Compare RELEASES vs FigmaSetup.exe versions
   scripts/
     frame-fix-wrapper.js            # BrowserWindow monkey-patch for native frames
     figma-native-stub.js            # JS stubs for Windows/macOS native modules
@@ -221,24 +221,26 @@ figma-desktop-linux/
     build-appimage.sh               # AppImage packaging
     build-deb-package.sh            # Debian packaging
     build-rpm-package.sh            # RPM packaging
+  .github/workflows/
+    font-enum-tests.yml             # Unit tests for the local font implementation
+    global-workflows.yml            # Telegram, stale issue, and issue triage workflows
 ```
 
 ### What Gets Patched
 
-- **`frame:!1` / `frame:false`** in BrowserWindow options replaced with `frame:true`
-- **`titleBarStyle:"hidden"`** replaced with `"default"`
-- **`require("./bindings.node")`** redirected to `figma-native-stub.js` (40+ stubbed methods)
-- **`require("./desktop_rust.node")`** redirected to stub
-- **Local font helper** started in-process at `127.0.0.1:44950` with `/figma/font-files` and `/figma/font-file`
-- **`handleCommandLineArgs`** rewritten to scan all argv entries (Linux passes CLI flags before the app path)
-- **`package.json` main entry** updated to load `frame-fix-wrapper.js` before the original entry point
-- **`openFileTab` default parameter** patched to support the "Allow Duplicate Tabs" toggle via system tray
+- **Window shell** — forces native frames, hides the Windows caption buttons, keeps the menu bar hidden by default, and fixes stale content bounds after Linux tiling/maximize events.
+- **Native modules** — redirects `bindings.node` and `desktop_rust.node` imports to `figma-native-stub.js`, including the `bindings_worker.js` utility process used for font enumeration.
+- **Local fonts** — starts a built-in localhost helper at `127.0.0.1:44950` with `/figma/version`, `/figma/font-files`, and `/figma/font-file`, backed by the pure JS scanner in `scripts/font-enum/`.
+- **Linux argument handling** — rewrites `handleCommandLineArgs` so `figma://` URLs and file paths are found even when Electron inserts Linux launcher flags before the app path.
+- **Tray integration** — fixes right-click context menus on Linux, adds the persistent **Allow Duplicate Tabs** toggle, and keeps tray notifications debuggable with `FIGMA_DEBUG=1`.
+- **Package entrypoint** — updates the packaged `package.json` to load `frame-fix-wrapper.js` before Figma's original entry point.
 
 ## Known Limitations
 
 - **No auto-updates** — The Squirrel updater is Windows-only. Rebuild to update to a new version.
 - **No eyedropper tool** — Requires native screen capture (`bindings.node`), which is stubbed.
 - **x86_64 only** — Figma's Windows installer is x86_64-only.
+- **Font preview endpoint is not implemented** — Fonts load through the built-in helper, but `/figma/font-preview` currently returns 404.
 
 ## License
 

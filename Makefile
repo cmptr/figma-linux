@@ -32,4 +32,4 @@ clean:
 	rm -f figma-desktop-*.rpm
 
 url:
-	./get-url-x64.sh
+	./figma-version-tool.sh
