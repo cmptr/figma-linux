@@ -19,6 +19,8 @@ log_message '--- Figma Desktop Nix Start ---'
 log_message "Timestamp: $(date)"
 log_message "Arguments: $*"
 log_message "App root: $app_root"
+log_message "Electron binary: @electron@/bin/electron"
+log_message "Electron arguments: ${electron_args[*]}"
 
 cd "$HOME" || exit 1
 exec "@electron@/bin/electron" "${electron_args[@]}" "$@" >> "$log_file" 2>&1
