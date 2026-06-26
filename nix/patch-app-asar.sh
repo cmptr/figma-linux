@@ -182,7 +182,9 @@ done
 node <<'NODE'
 const fs = require('fs');
 const files = ['app.asar.contents/main.js', 'app.asar.contents/bindings_worker.js'];
+const workerFile = 'app.asar.contents/bindings_worker.js';
 let total = 0;
+let workerPatched = false;
 for (const file of files) {
   let code = fs.readFileSync(file, 'utf8');
   const before = code;
@@ -197,12 +199,24 @@ for (const file of files) {
   }
   if (code !== before) {
     total++;
+    if (file === workerFile) workerPatched = true;
     fs.writeFileSync(file, code);
   }
 }
 if (total === 0) {
   console.error('Required native runtime patch failed: no native module require patterns found in main.js or bindings_worker.js');
   process.exit(1);
+}
+const workerCode = fs.readFileSync(workerFile, 'utf8');
+if (!workerPatched) {
+  console.error('Required worker native runtime patch failed: no native module require patterns found in bindings_worker.js');
+  process.exit(1);
+}
+for (const pattern of ['require("./desktop_rust.node")', 'require("../rust/desktop_rust.node")']) {
+  if (workerCode.includes(pattern)) {
+    console.error(`Required worker native runtime patch failed: bindings_worker.js still contains ${pattern}`);
+    process.exit(1);
+  }
 }
 NODE
 

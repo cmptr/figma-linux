@@ -36,3 +36,18 @@ Completed review fixes.
 
 ## Concerns
 - `desktop_shell.js` currently has no frame patterns to replace, so that specific shell-frame sed equivalent is reported as an optional skip. The shell menu platform-gate patch remains required and fails if its target is absent.
+
+## Task 4 remaining review fix
+
+## Status
+Completed remaining review fix.
+
+## Files changed
+- `nix/patch-app-asar.sh` - tracks `bindings_worker.js` native-runtime replacements separately and fails if the required worker patch does not apply or if desktop Rust native require calls remain after patching.
+
+## Commands and outcomes
+- `bash -n nix/patch-app-asar.sh` - passed.
+- `nix build .#figma-desktop --show-trace` - passed; produced `result` pointing at `/nix/store/1q14kzg25666vvqz07ybkxzffw4lxxsb-figma-desktop-126.6.9`.
+
+## Concerns
+- `nix build` warned that the Git tree was dirty because this review fix and report update were uncommitted during the build.
