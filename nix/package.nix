@@ -5,6 +5,7 @@
 , makeWrapper
 , p7zip
 , nodejs_20
+, asar
 , figmaSource
 }:
 
@@ -23,6 +24,7 @@ stdenv.mkDerivation {
     makeWrapper
     p7zip
     nodejs_20
+    asar
   ];
 
   dontUnpack = true;
@@ -35,13 +37,47 @@ stdenv.mkDerivation {
     fi
   '';
 
+  buildPhase = ''
+    runHook preBuild
+
+    mkdir -p build/exe build/nupkg build/staging
+    7z x -y "$src" -obuild/exe
+
+    nupkg=$(find build/exe -name '*.nupkg' -print -quit)
+    if [ -z "$nupkg" ]; then
+      echo "Could not find Figma .nupkg inside installer" >&2
+      exit 1
+    fi
+
+    7z x -y "$nupkg" -obuild/nupkg
+
+    asar_source="build/nupkg/lib/net45/resources/app.asar"
+    unpacked_source="build/nupkg/lib/net45/resources/app.asar.unpacked"
+
+    if [ ! -f "$asar_source" ]; then
+      echo "app.asar not found at $asar_source" >&2
+      exit 1
+    fi
+
+    cp "$asar_source" build/staging/app.asar
+    if [ -d "$unpacked_source" ]; then
+      cp -r "$unpacked_source" build/staging/app.asar.unpacked
+    fi
+
+    bash ${./patch-app-asar.sh} ${../.} build/staging ${asar}/bin/asar
+
+    runHook postBuild
+  '';
+
   installPhase = ''
     runHook preInstall
 
     mkdir -p $out/bin $out/share/figma-desktop
-    cat > $out/share/figma-desktop/README.native-package-skeleton <<'EOF'
-This is a packaging skeleton. The app.asar extraction and patching steps are added in the next task.
-EOF
+    cp build/staging/app.asar $out/share/figma-desktop/app.asar
+    if [ -d build/staging/app.asar.unpacked ]; then
+      cp -r build/staging/app.asar.unpacked $out/share/figma-desktop/app.asar.unpacked
+    fi
+    cp ${../scripts/launcher-common.sh} $out/share/figma-desktop/launcher-common.sh
 
     makeWrapper ${electron}/bin/electron $out/bin/figma-desktop \
       --add-flags "$out/share/figma-desktop/app.asar"
