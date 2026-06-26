@@ -5,9 +5,10 @@ releases_url='https://desktop.figma.com/win/RELEASES'
 installer_url='https://desktop.figma.com/win/FigmaSetup.exe'
 
 echo "Checking Figma releases: $releases_url" >&2
-release_line=$(curl -fsSL -H 'User-Agent: Figma/1 (Windows; x64)' "$releases_url" | head -n 1)
+releases_content=$(curl -fsSL -H 'User-Agent: Figma/1 (Windows; x64)' "$releases_url")
+release_line=${releases_content%%$'\n'*}
 
-version=$(printf '%s\n' "$release_line" | awk '{print $2}')
+version=$(awk '{print $2}' <<<"$release_line")
 if [ -z "$version" ]; then
   version='unknown'
 fi

@@ -171,7 +171,7 @@ To inspect updated Figma source metadata:
 nix run .#update-figma
 ```
 
-Review the output before copying values into `nix/figma-source.nix`.
+Review the output before copying values into `nix/figma-source.nix`. The helper reports the version field in upstream `RELEASES` format, for example `Figma-126.6.9-full.nupkg`.
 
 #### Makefile Shortcuts
 
