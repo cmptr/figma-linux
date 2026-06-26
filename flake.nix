@@ -62,9 +62,20 @@
         default = figmaDesktop;
       };
 
-      apps.${system}.default = {
-        type = "app";
-        program = "${figmaDesktop}/bin/figma-desktop";
+      apps.${system} = {
+        default = {
+          type = "app";
+          program = "${figmaDesktop}/bin/figma-desktop";
+        };
+
+        update-figma = {
+          type = "app";
+          program = "${pkgs.writeShellApplication {
+            name = "update-figma";
+            runtimeInputs = [ pkgs.curl pkgs.jq pkgs.nix ];
+            text = builtins.readFile ./nix/update-figma.sh;
+          }}/bin/update-figma";
+        };
       };
 
       checks.${system} = {

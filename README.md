@@ -143,6 +143,36 @@ nix develop
 
 The development shell provides the build-time tools used by `build.sh`. The native Nix package is tracked separately from the AppImage/deb/rpm build path.
 
+### Native Nix package
+
+Build the native package:
+
+```bash
+nix build .#figma-desktop
+```
+
+Run it directly:
+
+```bash
+nix run .#figma-desktop
+```
+
+Install it into a profile:
+
+```bash
+nix profile install .#figma-desktop
+```
+
+The native package uses a pinned `FigmaSetup.exe` source and nixpkgs Electron when the Electron major version is compatible with the pinned Figma client.
+
+To inspect updated Figma source metadata:
+
+```bash
+nix run .#update-figma
+```
+
+Review the output before copying values into `nix/figma-source.nix`.
+
 #### Makefile Shortcuts
 
 ```bash
