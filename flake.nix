@@ -11,8 +11,13 @@
       pkgs = import nixpkgs {
         inherit system;
         config.permittedInsecurePackages = [
+          # Node 20 is required by the current build tooling and locked nixpkgs marks
+          # both full and slim outputs insecure. Revisit when the build moves to a
+          # supported Node release or nixpkgs is updated.
           "nodejs-20.20.2"
           "nodejs-slim-20.20.2"
+          # Figma currently requires Electron 39 at runtime. Keep this narrow and
+          # revisit whenever nix/figma-source.nix is updated for a new Figma/Electron.
           "electron-39.8.10"
         ];
         config.allowUnfreePredicate = pkg: builtins.elem (nixpkgs.lib.getName pkg) [
@@ -29,6 +34,8 @@
         if defaultElectronMajor == expectedElectronMajor then
           pkgs.electron
         else if builtins.hasAttr expectedElectronAttr pkgs then
+          # Prefer an explicit nixpkgs Electron package matching the pinned Figma
+          # installer, but fall back below so package.nix can emit the major mismatch.
           builtins.getAttr expectedElectronAttr pkgs
         else
           pkgs.electron;
