@@ -13,9 +13,28 @@
         config.permittedInsecurePackages = [
           "nodejs-20.20.2"
           "nodejs-slim-20.20.2"
+          "electron-39.8.10"
+        ];
+        config.allowUnfreePredicate = pkg: builtins.elem (nixpkgs.lib.getName pkg) [
+          "figma-desktop"
         ];
       };
       figmaSource = import ./nix/figma-source.nix;
+      electron =
+        let
+          defaultElectronMajor = pkgs.lib.toInt (builtins.head (pkgs.lib.splitString "." pkgs.electron.version));
+          expectedElectronMajor = figmaSource.expectedElectronMajor;
+          expectedElectronAttr = "electron_${toString expectedElectronMajor}";
+        in
+        if defaultElectronMajor == expectedElectronMajor then
+          pkgs.electron
+        else if builtins.hasAttr expectedElectronAttr pkgs then
+          builtins.getAttr expectedElectronAttr pkgs
+        else
+          pkgs.electron;
+      figmaDesktop = pkgs.callPackage ./nix/package.nix {
+        inherit figmaSource electron;
+      };
     in {
       devShells.${system}.default = pkgs.mkShell {
         packages = with pkgs; [
@@ -36,6 +55,16 @@
       };
 
       formatter.${system} = pkgs.nixpkgs-fmt;
+
+      packages.${system} = {
+        figma-desktop = figmaDesktop;
+        default = figmaDesktop;
+      };
+
+      apps.${system}.default = {
+        type = "app";
+        program = "${figmaDesktop}/bin/figma-desktop";
+      };
 
       checks.${system} = {
         dev-shell = pkgs.runCommand "figma-linux-dev-shell-check" { } ''
