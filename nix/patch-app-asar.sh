@@ -183,18 +183,19 @@ node <<'NODE'
 const fs = require('fs');
 const files = ['app.asar.contents/main.js', 'app.asar.contents/bindings_worker.js'];
 const workerFile = 'app.asar.contents/bindings_worker.js';
+const nativeRequireReplacements = [
+  ['require("./bindings.node")', 'require("./figma-native-stub.js")'],
+  ['require("../build/Debug/bindings.node")', 'require("./figma-native-stub.js")'],
+  ['require("../build/Release/bindings.node")', 'require("./figma-native-stub.js")'],
+  ['require("./desktop_rust.node")', 'require("./figma-native-stub.js").desktop_rust'],
+  ['require("../rust/desktop_rust.node")', 'require("./figma-native-stub.js").desktop_rust'],
+];
 let total = 0;
 let workerPatched = false;
 for (const file of files) {
   let code = fs.readFileSync(file, 'utf8');
   const before = code;
-  for (const [pattern, replacement] of [
-    ['require("./bindings.node")', 'require("./figma-native-stub.js")'],
-    ['require("../build/Debug/bindings.node")', 'require("./figma-native-stub.js")'],
-    ['require("../build/Release/bindings.node")', 'require("./figma-native-stub.js")'],
-    ['require("./desktop_rust.node")', 'require("./figma-native-stub.js").desktop_rust'],
-    ['require("../rust/desktop_rust.node")', 'require("./figma-native-stub.js").desktop_rust'],
-  ]) {
+  for (const [pattern, replacement] of nativeRequireReplacements) {
     code = code.split(pattern).join(replacement);
   }
   if (code !== before) {
@@ -212,9 +213,9 @@ if (!workerPatched) {
   console.error('Required worker native runtime patch failed: no native module require patterns found in bindings_worker.js');
   process.exit(1);
 }
-for (const pattern of ['require("./desktop_rust.node")', 'require("../rust/desktop_rust.node")']) {
+for (const [pattern] of nativeRequireReplacements) {
   if (workerCode.includes(pattern)) {
-    console.error(`Required worker native runtime patch failed: bindings_worker.js still contains ${pattern}`);
+    console.error(`Required worker native runtime patch failed: bindings_worker.js still contains native require pattern ${pattern}`);
     process.exit(1);
   }
 }

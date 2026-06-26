@@ -51,3 +51,18 @@ Completed remaining review fix.
 
 ## Concerns
 - `nix build` warned that the Git tree was dirty because this review fix and report update were uncommitted during the build.
+
+## Task 4 worker residual validation fix
+
+## Status
+Completed validation hardening.
+
+## Files changed
+- `nix/patch-app-asar.sh` - hoists the native require replacement list into `nativeRequireReplacements` and reuses it for `bindings_worker.js` residual validation, so any remaining `bindings.node` or `desktop_rust.node` require pattern now fails clearly.
+
+## Commands and outcomes
+- `bash -n nix/patch-app-asar.sh` - passed.
+- `nix build .#figma-desktop --show-trace` - passed; produced `/nix/store/i235hj361l5j7h1rgmfg7vlvgpipm47w-figma-desktop-126.6.9`.
+
+## Concerns
+- `nix build` warned that the Git tree was dirty because this review fix was uncommitted during the build.
