@@ -132,6 +132,17 @@ sudo apt install ./figma-desktop_*.deb
 sudo dnf install ./figma-desktop-*.rpm
 ```
 
+### Nix development shell
+
+On NixOS or systems with flakes enabled, enter the development shell before using the existing build scripts:
+
+```bash
+nix develop
+./build.sh --build appimage --clean no
+```
+
+The development shell provides the build-time tools used by `build.sh`. The native Nix package is tracked separately from the AppImage/deb/rpm build path.
+
 #### Makefile Shortcuts
 
 ```bash
