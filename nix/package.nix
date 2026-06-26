@@ -2,7 +2,6 @@
 , stdenv
 , fetchurl
 , electron
-, makeWrapper
 , p7zip
 , nodejs_20
 , asar
@@ -21,7 +20,6 @@ stdenv.mkDerivation {
   };
 
   nativeBuildInputs = [
-    makeWrapper
     p7zip
     nodejs_20
     asar
@@ -70,19 +68,38 @@ stdenv.mkDerivation {
   '';
 
   installPhase = ''
-    runHook preInstall
+        runHook preInstall
 
-    mkdir -p $out/bin $out/share/figma-desktop
-    cp build/staging/app.asar $out/share/figma-desktop/app.asar
-    if [ -d build/staging/app.asar.unpacked ]; then
-      cp -r build/staging/app.asar.unpacked $out/share/figma-desktop/app.asar.unpacked
-    fi
-    cp ${../scripts/launcher-common.sh} $out/share/figma-desktop/launcher-common.sh
+        mkdir -p $out/bin $out/share/figma-desktop
+        cp build/staging/app.asar $out/share/figma-desktop/app.asar
+        if [ -d build/staging/app.asar.unpacked ]; then
+          cp -r build/staging/app.asar.unpacked $out/share/figma-desktop/app.asar.unpacked
+        fi
+        cp ${../scripts/launcher-common.sh} $out/share/figma-desktop/launcher-common.sh
 
-    makeWrapper ${electron}/bin/electron $out/bin/figma-desktop \
-      --add-flags "$out/share/figma-desktop/app.asar"
+        substitute ${./figma-desktop-launcher.sh} $out/bin/figma-desktop \
+          --subst-var out \
+          --subst-var-by electron ${electron}
+        chmod +x $out/bin/figma-desktop
 
-    runHook postInstall
+        mkdir -p $out/share/icons/hicolor/scalable/apps
+        cp ${../assets/figma-icon.svg} $out/share/icons/hicolor/scalable/apps/figma-desktop.svg
+
+        mkdir -p $out/share/applications
+        cat > $out/share/applications/figma.desktop <<'EOF'
+    [Desktop Entry]
+    Name=Figma
+    Exec=figma-desktop %u
+    Icon=figma-desktop
+    Type=Application
+    Terminal=false
+    Categories=Graphics;
+    Comment=Figma Desktop for Linux
+    MimeType=x-scheme-handler/figma;
+    StartupWMClass=Figma
+    EOF
+
+        runHook postInstall
   '';
 
   meta = {

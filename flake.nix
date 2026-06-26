@@ -35,7 +35,8 @@
       figmaDesktop = pkgs.callPackage ./nix/package.nix {
         inherit figmaSource electron;
       };
-    in {
+    in
+    {
       devShells.${system}.default = pkgs.mkShell {
         packages = with pkgs; [
           nodejs_20
@@ -74,12 +75,21 @@
           touch $out
         '';
 
-        figma-source = pkgs.runCommand "figma-source-check" {
-          src = pkgs.fetchurl {
-            inherit (figmaSource) url hash;
-          };
-        } ''
+        figma-source = pkgs.runCommand "figma-source-check"
+          {
+            src = pkgs.fetchurl {
+              inherit (figmaSource) url hash;
+            };
+          } ''
           test -s $src
+          touch $out
+        '';
+
+        desktop-file = pkgs.runCommand "figma-desktop-file-check"
+          {
+            nativeBuildInputs = [ pkgs.desktop-file-utils ];
+          } ''
+          desktop-file-validate ${figmaDesktop}/share/applications/figma.desktop
           touch $out
         '';
       };
