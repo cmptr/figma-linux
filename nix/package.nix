@@ -64,7 +64,7 @@ stdenv.mkDerivation {
       cp -r "$unpacked_source" build/staging/app.asar.unpacked
     fi
 
-    bash ${./patch-app-asar.sh} ${../.} build/staging ${asar}/bin/asar
+    bash ${./patch-app-asar.sh} ${../scripts} build/staging ${asar}/bin/asar
 
     runHook postBuild
   '';
