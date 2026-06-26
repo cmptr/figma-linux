@@ -15,6 +15,7 @@
           "nodejs-slim-20.20.2"
         ];
       };
+      figmaSource = import ./nix/figma-source.nix;
     in {
       devShells.${system}.default = pkgs.mkShell {
         packages = with pkgs; [
@@ -36,11 +37,22 @@
 
       formatter.${system} = pkgs.nixpkgs-fmt;
 
-      checks.${system}.dev-shell = pkgs.runCommand "figma-linux-dev-shell-check" { } ''
-        test -x ${pkgs.nodejs_20}/bin/node
-        test -x ${pkgs.p7zip}/bin/7z
-        test -x ${pkgs.imagemagick}/bin/convert
-        touch $out
-      '';
+      checks.${system} = {
+        dev-shell = pkgs.runCommand "figma-linux-dev-shell-check" { } ''
+          test -x ${pkgs.nodejs_20}/bin/node
+          test -x ${pkgs.p7zip}/bin/7z
+          test -x ${pkgs.imagemagick}/bin/convert
+          touch $out
+        '';
+
+        figma-source = pkgs.runCommand "figma-source-check" {
+          src = pkgs.fetchurl {
+            inherit (figmaSource) url hash;
+          };
+        } ''
+          test -s $src
+          touch $out
+        '';
+      };
     };
 }
